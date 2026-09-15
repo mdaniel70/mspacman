@@ -72,7 +72,14 @@ function audioTrack(url, volume) {
     audio.load();
     var looping = false;
     this.play = function(noResetTime) {
-        playSound(noResetTime);
+        if (noResetTime) {
+            // Clone the audio element so rapid clicks/dots play over each other cleanly
+            var clone = audio.cloneNode(true);
+            clone.volume = audio.volume;
+            clone.play().catch(function(err){});
+        } else {
+            playSound(noResetTime);
+        }
     };
     this.startLoop = function(noResetTime) {
         if (looping) return;
@@ -116,10 +123,12 @@ function audioTrack(url, volume) {
 
 function preloadAudio() {
 
-    this.credit            = new audioTrack('sounds/credit.mp3');
-    this.coffeeBreakMusic  = new audioTrack('sounds/coffee-break-music.mp3');
+    this.credit            = new audioTrack('sounds/credit.wav');
+    this.intermission1  = new audioTrack('sounds/ms_intermission1');
+    this.intermission2 = new audioTrack('sounds/ms_intermission2.wav');
+    this.intermission3 = new audioTrack('sounds/ms_intermission3.wav');
     this.die               = new audioTrack('sounds/ms_death.wav');
-    this.ghostReturnToHome = new audioTrack('sounds/ghost-return-to-home.mp3');
+    this.ghostReturnToHome = new audioTrack('sounds/ms_eyes_firstloop.wav');
     this.eatingGhost       = new audioTrack('sounds/ms_eat_ghost.wav');
     this.ghostTurnToBlue   = new audioTrack('sounds/ms_fright.wav', 0.5);
     this.eatingFruit       = new audioTrack('sounds/eat_fruit.wav');
@@ -11037,7 +11046,9 @@ var deadState = (function() {
         triggers: {
             0: { // freeze
                 init: function() {
-                    audio.die.play();
+                    setTimeout(function() {
+                        audio.die.play();
+                    }, 400); // Delays playback by 400ms (0.4s)
                 },
                 update: function() {
                     var i;
@@ -11469,17 +11480,25 @@ var initSwipe = function() {
 // Cutscenes
 //
 
-var playCutScene = function(cutScene, nextState) {
-
-    // redraw map buffer with fruit list but no map structure
+var playCutScene = function(cutScene, nextState, musicTrack) {
+    // Redraw map buffer with fruit list but no map structure
     map = undefined;
     renderer.drawMap(true);
 
-    // miss the audio silence and time it cleanly for pacman cut scene 1
-    setTimeout(audio.coffeeBreakMusic.startLoop, 1200);
+    // Stop active background audio/loops first
+    audio.silence();
+
+    // Default to intermission1 if no track is specified
+    var trackToPlay = musicTrack || audio.intermission1;
+
+    setTimeout(function() {
+        if (trackToPlay) {
+            trackToPlay.startLoop();
+        }
+    }, 1200);
+
     cutScene.nextState = nextState;
     switchState(cutScene, 60);
-
 };
 
 var pacmanCutscene1 = newChildObject(scriptState, {
@@ -12544,9 +12563,9 @@ var cookieCutscene2 = (function() {
 
 var cutscenes = [
     [pacmanCutscene1], // GAME_PACMAN
-    [mspacmanCutscene1, mspacmanCutscene2], // GAME_MSPACMAN
+    [mspacmanCutscene1, mspacmanCutscene2, mspacmanCutscene3], // GAME_MSPACMAN
     [cookieCutscene1, cookieCutscene2], // GAME_COOKIE
-    [mspacmanCutscene1, mspacmanCutscene2], // GAME_OTTO
+    [mspacmanCutscene1, mspacmanCutscene2, mspacmanCutscene3], // GAME_OTTO
 ];
 
 var isInCutScene = function() {
@@ -12564,45 +12583,38 @@ var isInCutScene = function() {
 var triggerCutsceneAtEndLevel = function() {
     if (gameMode == GAME_PACMAN) {
         if (level == 2) {
-            playCutScene(pacmanCutscene1, readyNewState);
+            playCutScene(pacmanCutscene1, readyNewState, audio.intermission1);
             return true;
         }
-        /*
-        else if (level == 5) {
-            playCutScene(pacmanCutscene2, readyNewState);
-            return true;
-        }
-        else if (level >= 9 && (level-9)%4 == 0) {
-            playCutScene(pacmanCutscene3, readyNewState);
-            return true;
-        }
-        */
     }
     else if (gameMode == GAME_MSPACMAN || gameMode == GAME_OTTO) {
         if (level == 2) {
-            playCutScene(mspacmanCutscene1, readyNewState);
+            playCutScene(mspacmanCutscene1, readyNewState, audio.intermission1);
             return true;
         }
         else if (level == 5) {
-            playCutScene(mspacmanCutscene2, readyNewState);
+            playCutScene(mspacmanCutscene2, readyNewState, audio.intermission2);
+            return true;
+        }
+        else if (level == 9 || level == 13) {
+            playCutScene(mspacmanCutscene3 || mspacmanCutscene1, readyNewState, audio.intermission3);
             return true;
         }
     }
     else if (gameMode == GAME_COOKIE) {
         if (level == 2) {
-            playCutScene(cookieCutscene1, readyNewState);
+            playCutScene(cookieCutscene1, readyNewState, audio.intermission1);
             return true;
         }
         else if (level == 5) {
-            playCutScene(cookieCutscene2, readyNewState);
+            playCutScene(cookieCutscene2, readyNewState, audio.intermission2);
             return true;
         }
     }
 
-    // no cutscene triggered
+    // No cutscene triggered
     return false;
 };
-
 //@line 1 "src/maps.js"
 //////////////////////////////////////////////////////////////////////////////////////
 // Maps
